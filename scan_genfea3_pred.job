@@ -1,0 +1,145 @@
+#!/bin/tcsh -f 
+
+if( $1 == "" ) then
+echo give a mutation list
+exit
+endif
+
+
+set mmm=$0:r
+set ddd=`echo 1 | awk 'BEGIN{cc="'$mmm'"}{for(l=1;l<=length(cc);l++) if(substr(cc,l,1)=="/") ip=l}END{print substr(cc,1,ip-1)}'`
+set ddd2=`echo $ddd | awk '{print substr($1,1,2)}'`
+if ( $ddd2 == "./" ) set ddd=`pwd`
+if ( $ddd2 == ".." ) set ddd=`pwd`"/$ddd"
+
+set src2=$ddd/../str
+set src0=$src2/pfam
+
+
+#echo $ddd
+cat $ddd/x10.inp > ! _x10.inp
+#echo $ddd | awk '{print "\x027" "'$ddd'" "/modele.inp\x027"}' >> _x10.inp
+echo $ddd | awk '{print "\047" "'$ddd'" "/modele.inp\047"}' >> _x10.inp
+
+
+#set base=$1:r
+set base=$1
+
+
+echo "`date`"   $base
+
+if ( -e   $base"_fea.txt" && -e  $base"_pred.lst"  ) then
+cat  $base"_fea.txt"  >! __tmp0_fea.txt
+cat $base"_pred.lst" >! __tmp0.lst
+goto ok2
+endif 
+
+
+if ( -e __tmp0.lst ) rm -if __tmp0.lst
+touch __tmp0.lst 
+
+if ( -e __tmp0_fea.txt ) rm -if __tmp0_fea.txt
+touch __tmp0_fea.txt
+
+
+set i=1
+lpi:
+
+set me0=`cat $1 | awk 'BEGIN{i=0}{i=i+1;if(i=="'$i'") print $1}'`
+if ( $me0 == "" )  goto ok2
+#echo $i $me0   
+set me=`grep $me0  $ddd/human_ref.lst  | awk '{if($2=="'$me0'") print $1}'`
+
+if ( $me == "" ) goto ok
+
+set pos=`cat $1 | awk 'BEGIN{i=0}{i=i+1;if(i=="'$i'") print $2}'`
+set nat=`cat $1 | awk 'BEGIN{i=0}{i=i+1;if(i=="'$i'") print $3}'`
+set mut=`cat $1 | awk 'BEGIN{i=0}{i=i+1;if(i=="'$i'") print $4}'`
+set freq0=`cat $1 | awk 'BEGIN{i=0;c=0}{i=i+1;if(i=="'$i'"&&$5!=""){print $5}}'`
+set gene=`cat $ddd/list_ref_gene.lst | awk '{if($2=="'$me0'") print $4}' | head -1`
+if ( $gene == "" ) set gene="NONE"
+
+if ( $freq0 == "" ) then
+set freq0=`grep $me0  $ddd/1kgen_tr.txt | awk '{if($1=="'$me0'"&&$2=="'$pos'"&&$4=="'$mut'"){ print $5}}' |head -1`
+endif 
+if ( $freq0 == "" ) set freq0=0
+
+if ( ! -e $src0/$me ) then
+set id=`grep $me $ddd/result_code.lst | awk '{print $2}'`
+#echo $me  | awk '{print "\x027__tmp.txt\x027","\x027'$src2'/'$id'/"  $1 "/" $1 "_boundary.txt\x027","\x027'$src2'/'$id'/"  $1 "/" $1 ".ent\x027"}' > ! _tmp.inp
+echo $me  | awk '{print "\047__tmp.txt\047","\047'$src2'/'$id'/"  $1 "/" $1 "_boundary.txt\047","\047'$src2'/'$id'/"  $1 "/" $1 ".ent\047"}' > ! _tmp.inp
+set fil2=`echo $me  | awk '{print "'$src2'/'$id'/"  $1 "/" $1 "_boundary.txt"}'`
+if ( ! -e $fil2 ) goto ok
+else
+set nr=`tail -1 $src0/$me/${me}_boundary.txt | awk '{print $3}'`
+if ( $nr > 5000 ) goto ok
+#echo $me  | awk '{print "\x027__tmp.txt\x027","\x027'$src0'/"  $1 "/" $1 "_boundary.txt\x027","\x027'$src0'/"  $1 "/" $1 ".ent\x027"}' > ! _tmp.inp
+echo $me  | awk '{print "\047__tmp.txt\047","\047'$src0'/"  $1 "/" $1 "_boundary.txt\047","\047'$src0'/"  $1 "/" $1 ".ent\047"}' > ! _tmp.inp
+set fil2=`echo $me  | awk '{print "'$src0'/"  $1 "/" $1 "_boundary.txt"}'`
+if ( ! -e $fil2 ) goto ok
+endif 
+
+
+echo 0 $pos $nat $mut  > ! __tmp.txt
+$ddd/genfea_cnt_v3_bcnt2_ent<_tmp.inp > & ! __tmp.out 
+
+set ie=`grep "i4" __tmp.out | wc -l | awk '{print $1}'`
+if ( $ie > 0 ) then
+echo $me0 $pos ERROR
+exit
+endif 
+
+set np0=`wc -l __tmp.out | awk '{print $1}'`
+if ( $np0 > 0 ) then
+echo $me0 $pos $nat $mut $freq0  $gene >> __tmp0.lst
+cat __tmp.out >> __tmp0_fea.txt
+endif 
+
+
+
+ok:
+
+@ i = $i + 1
+goto lpi
+
+ok2:
+
+set np=`wc -l __tmp0_fea.txt | awk '{print $1}'`
+
+if ( $np > 0 )then
+
+#$ddd/treebind_rn_ca_n8<_x10.inp 
+$ddd/treebind_rn_ca_n8<_x10.inp 
+
+goto noit
+
+#cat fort.55 | awk '{print $0,$4}' > ! __tmp0_fea_it.txt
+paste  fort.55  __tmp0_fea.txt | awk '{print $1,$2,$3,$86,$4}' > ! __tmp0_fea_it.txt
+#cat fort.55 | awk '{print $1,$3,$3,$4,$4}' > ! __tmp0_fea_itbk.txt
+paste  fort.55  __tmp0_fea.txt | awk '{print $1,$3,$3,$86,$4}' > ! __tmp0_fea_itbk.txt
+
+$ddd/treebind_rn_ca_n8<_x20.inp
+#cat fort.55 > ! fort.55_it
+
+paste fort.55 __tmp0.lst | awk '{c=$2;d=$3;if($9>0.17&&$9<1) {c=0;d=0};print $1,c,d,$4}' > ! fort.55_it
+
+$ddd/treebind_rn_ca_n8<_x20bk.inp
+
+noit:
+
+#set ncard=`wc -l $ddd/gencard.txt | awk '{print $1}'`
+#cat $ddd/gencard.txt __tmp0.lst  | awk 'BEGIN{i=0}{i=i+1;if(i<='$ncard'){t[i]=$1;s[i]=$0}else{x="";for(l=1;l<='$ncard';l++)if($6==t[l])\
+#{x=s[l];break};print x}}' > ! __tmp1.lst
+
+#paste __tmp0.lst  fort.55 __tmp1.lst  | awk '{x=$12;for(l=13;l<=2000;l++) if($l!="") x=x " " $l;print $1,"\x009",$2,"\x009",$3,"\x009",$4,"\x009",$8,"\x009",$10,"\x009",x}' > ! pred.out 
+
+paste __tmp0.lst  fort.55  | awk '{x=$12;for(l=13;l<=2000;l++) if($l!="") x=x " " $l;print $1,"\x009",$2,"\x009",$3,"\x009",$4,"\x009",$8,"\x009",$10,"\x009",$5,"\x009",$6,"\x009",x}' > ! pred.out 
+
+mv -f   pred.out $base"_pred.out" 
+mv -f   __tmp0_fea.txt $base"_fea.txt"
+mv -f   __tmp0.lst  $base"_pred.lst"
+rm -if fort.55
+endif 
+
+echo "`date`"
+
